@@ -1,48 +1,55 @@
 package src
 
+import "log"
+
 type VM struct {
-	screen     [32][8]byte // 32x64 bitmap
-	memory     [4096]byte
-	stack      [16]uint16
-	registers  [16]byte
-	dt, st, sp byte
-	pc, I      uint16
+	memory          [memorySize]byte
+	screen          [32][8]byte // 32x64 bitmap
+	stack           [16]uint16
+	v               [16]byte
+	dt, st, sp      byte
+	pc, opcode, I   uint16
+	opcodesHandlers map[uint16]any
 }
 
 func (vm *VM) init(bytes []byte) {
 	vm.loadROM(bytes)
-	vm.pc = 0x200
+	vm.pc = startAddress
+	vm.opcodesHandlers = map[uint16]any{
+		0x0000: vm.handle0,
+	}
 }
 
 func (vm *VM) loadROM(bytes []byte) {
 	for i, b := range bytes {
-		vm.memory[0x200+i] = b
+		vm.memory[startAddress+i] = b
 	}
 }
 
-func (vm *VM) initSprites() {
-	sprites := [16][5]byte{
-		{0xF0, 0x90, 0x90, 0x90, 0xF0}, // "0"
-		{0x20, 0x60, 0x20, 0x20, 0x70}, // "1"
-		{0xF0, 0x10, 0xF0, 0x80, 0xF0}, // "2"
-		{0xF0, 0x10, 0xF0, 0x10, 0xF0}, // "3"
-		{0x90, 0x90, 0xF0, 0x10, 0x10}, // "4"
-		{0xF0, 0x90, 0xF0, 0x10, 0xF0}, // "5"
-		{0xF0, 0x90, 0xF0, 0x90, 0xF0}, // "6"
-		{0xF0, 0x10, 0x20, 0x40, 0x40}, // "7"
-		{0xF0, 0x90, 0xF0, 0x90, 0xF0}, // "8"
-		{0xF0, 0x90, 0xF0, 0x10, 0xF0}, // "9"
-		{0xF0, 0x90, 0xF0, 0x90, 0x90}, // "A"
-		{0xE0, 0x90, 0xE0, 0x90, 0xE0}, // "B"
-		{0xF0, 0x80, 0x80, 0x80, 0xF0}, // "C"
-		{0xE0, 0x90, 0x90, 0x90, 0xE0}, // "D"
-		{0xF0, 0x80, 0xF0, 0x80, 0xF0}, // "E"
-		{0xF0, 0x80, 0xF0, 0x80, 0x80}, // "F"
+func (vm *VM) initFonts() {
+	for i, b := range fonts {
+		vm.memory[i] = b
 	}
+}
 
-	for row, sprite := range sprites {
-		for col, b := range sprite {
-			vm.memory[row*len(sprite)+col] = b
+func (vm *VM) decAndExec() {
+	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc])
+	vm.opcodesHandlers[vm.opcode&0xF000]()
+}
+
+// Handlers
+func (vm *VM) handle0() {
+	switch vm.opcode & 0x00FF {
+	case 0x0E0: // Clear the display
+
+	case 0x0EE: // Return from a subroutine
+		if vm.sp < 1 {
+			log.Fatal("handle0: stack pointer is < 1")
 		}
+
+		vm.sp--
+		vm.pc = vm.stack[vm.sp]
+	default:
+		vm.pc += 2 // Ignoring opcode
 	}
 }
