@@ -33,7 +33,7 @@ func (vm *VM) initFonts() {
 }
 
 func (vm *VM) decAndExec() {
-	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc])
+	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.opcodesHandlers[vm.opcode&0xF000]()
 }
 
