@@ -7,6 +7,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 	"io/ioutil"
 	"log"
+	"os"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 
 	play := &cobra.Command{
 		Use:   "play",
-		Short: "specify path of ROM you want to play",
+		Short: "specify name of the ROM you want to play",
 		Run: func(cmd *cobra.Command, args []string) {
 			fileName := args[0]
 			file := romToBytes(fmt.Sprintf("./roms/%s", fileName))
@@ -32,34 +33,55 @@ func main() {
 			}
 			defer sdl.Quit()
 
-			window, err := sdl.CreateWindow(fmt.Sprintf("Chip8 Emulator - %s", fileName), sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-				sdl.WINDOWPOS_UNDEFINED, emulator.Width, emulator.Height)
+			window, err := sdl.CreateWindow(fmt.Sprintf("Chip8 Emulator - %s", fileName), sdl.WINDOWPOS_UNDEFINED,
+				sdl.WINDOWPOS_UNDEFINED, emulator.Width*emulator.Factor, emulator.Height*emulator.Factor, sdl.WINDOW_SHOWN)
 			if err != nil {
 				log.Fatalf("main: failed to create sdl window err: %s", err.Error())
 			}
 			defer window.Destroy()
 
-			surface, err := window.GetSurface()
+			canvas, err := sdl.CreateRenderer(window, -1, 0)
 			if err != nil {
-				log.Fatalf("main: failed to get surface err: %s", err.Error())
+				log.Fatalf("main: failed to create renderer err: %s", err.Error())
 			}
+			defer canvas.Destroy()
 
-			surface.FillRect(nil, 0)
+			// Main Loop
+			for {
+				// Execute next Opcode
+				chip8.DecAndExec()
 
-			rect := sdl.Rect{0, 0, 200, 200}
-			surface.FillRect(&rect, 0xffff0000)
-			window.UpdateSurface()
+				// Draw only when needed
+				if chip8.Draw() {
+					for i := 0; i < len(chip8.Screen); i++ {
+						for j := 0; j < len(chip8.Screen[i]); j++ {
+							if chip8.Screen[i][j] != 0 {
+								canvas.SetDrawColor(255, 255, 255, 0)
+							} else {
+								canvas.SetDrawColor(0, 0, 0, 0)
+							}
 
-			running := true
-			for running {
+							canvas.FillRect(&sdl.Rect{
+								X: int32(i) * emulator.Factor,
+								Y: int32(i) * emulator.Factor,
+								W: emulator.Factor,
+								H: emulator.Factor,
+							})
+						}
+					}
+					canvas.Present()
+				}
+
 				for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-					switch event.(type) {
+					switch et := event.(type) {
 					case *sdl.QuitEvent:
-						println("Quit")
-						running = false
-						break
+						os.Exit(0)
+					case *sdl.KeyboardEvent:
+						chip8.Key(et.Keysym.Sym, et.Type)
 					}
 				}
+
+				sdl.Delay(60 / 1000) // 60 Hz
 			}
 		},
 	}
