@@ -365,6 +365,6 @@ func (vm *VM) handleF() {
 		if !pressed {
 			return
 		}
-		vm.pc += 2
 	}
+	vm.pc += 2
 }
