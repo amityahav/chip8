@@ -1,6 +1,8 @@
-package src
+package emulator
 
 const (
+	Width        = 64
+	Height       = 32
 	startAddress = 0x200
 	memorySize   = 4096
 )

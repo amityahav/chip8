@@ -1,4 +1,4 @@
-package src
+package emulator
 
 import "log"
 
@@ -8,15 +8,17 @@ type VM struct {
 	stack           [16]uint16
 	v               [16]byte
 	dt, st, sp      byte
-	pc, opcode, I   uint16
-	opcodesHandlers map[uint16]any
+	pc, opcode, i   uint16
+	opcodesHandlers map[uint16]func()
 }
 
-func (vm *VM) init(bytes []byte) {
+func (vm *VM) Init(bytes []byte) {
 	vm.loadROM(bytes)
+	vm.initFonts()
 	vm.pc = startAddress
-	vm.opcodesHandlers = map[uint16]any{
+	vm.opcodesHandlers = map[uint16]func(){
 		0x0000: vm.handle0,
+		0x1000: vm.handle1,
 	}
 }
 
@@ -32,6 +34,9 @@ func (vm *VM) initFonts() {
 	}
 }
 
+func (vm *VM) loop() {
+	//screenarray := make([][32][8]uint8, vm.screenBuffer)
+}
 func (vm *VM) decAndExec() {
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.opcodesHandlers[vm.opcode&0xF000]()
@@ -52,4 +57,10 @@ func (vm *VM) handle0() {
 	default:
 		vm.pc += 2 // Ignoring opcode
 	}
+}
+
+// handle1 - JP addr
+func (vm *VM) handle1() {
+	addr := vm.opcode & 0x0FFF
+	vm.pc = addr
 }
