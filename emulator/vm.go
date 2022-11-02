@@ -365,6 +365,29 @@ func (vm *VM) handleF() {
 		if !pressed {
 			return
 		}
+	case 0x15: // LD DT, Vx
+		vm.dt = vm.v[x]
+	case 0x18: // LD ST, Vx
+		vm.st = vm.v[x]
+	case 0x1E: // ADD I, Vx
+		vm.i += uint16(vm.v[x])
+	case 0x29: // LD F, Vx
+		vm.i = uint16(vm.v[x]) * 0x5
+	case 0x33: // LD B, Vx
+		val := vm.v[x]
+		h := val / 100
+		t := val / 10
+		o := (val % 100) % 10
+
+	case 0x55: // LD [I], Vx
+		for idx, v := range vm.v {
+			vm.memory[vm.i+uint16(idx)] = v
+		}
+	case 0x65: // LD Vx, [I]
+		for idx := 0; idx < len(vm.v); idx++ {
+			vm.v[idx] = vm.memory[vm.i+uint16(idx)]
+		}
+
 	}
 	vm.pc += 2
 }

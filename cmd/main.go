@@ -63,7 +63,7 @@ func main() {
 
 							canvas.FillRect(&sdl.Rect{
 								X: int32(i) * emulator.Factor,
-								Y: int32(i) * emulator.Factor,
+								Y: int32(j) * emulator.Factor,
 								W: emulator.Factor,
 								H: emulator.Factor,
 							})
