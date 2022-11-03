@@ -3,7 +3,7 @@ package emulator
 const (
 	Width              = 64
 	Height             = 32
-	Factor       int32 = 15
+	Factor       int32 = 10
 	startAddress       = 0x200
 	memorySize         = 4096
 )

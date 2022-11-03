@@ -34,15 +34,16 @@ func (k *keyboard) init() {
 }
 
 type VM struct {
-	memory          [memorySize]byte
-	Screen          [32][8]byte // 32x64 bitmap
-	stack           [16]uint16
-	v               [16]byte
-	keyboard        keyboard
-	dt, st, sp      byte
-	pc, opcode, i   uint16
-	opcodesHandlers map[uint16]func()
-	shouldDraw      bool
+	memory              [memorySize]byte
+	romLength           uint16
+	Screen              [32][64]byte
+	stack               [16]uint16
+	v                   [16]byte
+	keyboard            keyboard
+	dt, st, sp          byte
+	pc, opcode, i       uint16
+	opcodesHandlers     map[uint16]func()
+	shouldDraw, Running bool
 }
 
 func (vm *VM) Init(bytes []byte) {
@@ -69,9 +70,12 @@ func (vm *VM) Init(bytes []byte) {
 		0xE000: vm.handleE,
 		0xF000: vm.handleF,
 	}
+	vm.Running = true
 }
 
 func (vm *VM) loadROM(bytes []byte) {
+	vm.romLength = uint16(len(bytes))
+
 	for i, b := range bytes {
 		vm.memory[startAddress+i] = b
 	}
@@ -107,8 +111,20 @@ func (vm *VM) Draw() bool {
 }
 
 func (vm *VM) DecAndExec() {
+	if vm.pc >= 0x200+vm.romLength {
+		vm.Running = false
+	}
 	vm.opcode = uint16(vm.memory[vm.pc])<<8 | uint16(vm.memory[vm.pc+1])
 	vm.opcodesHandlers[vm.opcode&0xF000]()
+
+	if vm.dt > 0 {
+		vm.dt--
+	}
+
+	if vm.st > 0 {
+		vm.st--
+	}
+
 }
 
 // Handlers
@@ -132,7 +148,7 @@ func (vm *VM) handle0() {
 		vm.sp--
 		vm.pc = vm.stack[vm.sp]
 	default:
-		vm.pc += 2 // Ignoring opcode
+		log.Fatalf("handle0: invalid opcode %X\n", vm.opcode)
 	}
 }
 
@@ -228,6 +244,11 @@ func (vm *VM) handle8() {
 	case 0x03: // XOR
 		vm.v[x] ^= vm.v[y]
 	case 0x04: // ADD
+		if vm.v[y] > 0xFF-vm.v[x] {
+			vm.v[0xF] = 1
+		} else {
+			vm.v[0xF] = 0
+		}
 		vm.v[x] += vm.v[y]
 	case 0x05: // SUB
 		if vm.v[x] > vm.v[y] {
@@ -237,11 +258,7 @@ func (vm *VM) handle8() {
 		}
 		vm.v[x] -= vm.v[y]
 	case 0x06: // SHR
-		if vm.v[x]&0x01 == 0x01 {
-			vm.v[0x0F] = 1
-		} else {
-			vm.v[0x0F] = 0
-		}
+		vm.v[0x0F] = vm.v[x] & 0x01
 		vm.v[x] >>= 1
 	case 0x07: // SUBN
 		if vm.v[y] > vm.v[x] {
@@ -252,13 +269,10 @@ func (vm *VM) handle8() {
 		vm.v[x] = vm.v[y] - vm.v[x]
 
 	case 0x0E: // SHL
-		mask := byte(0x01 << 7)
-		if vm.v[x]&mask == 0x80 {
-			vm.v[0x0F] = 1
-		} else {
-			vm.v[0x0F] = 0
-		}
+		vm.v[0x0F] = vm.v[x] >> 7
 		vm.v[x] <<= 1
+	default:
+		log.Fatalf("handle8: invalid opcode %X\n", vm.opcode)
 	}
 	vm.pc += 2
 }
@@ -304,21 +318,35 @@ func (vm *VM) handleC() {
 
 // handleD - DRW Vx, Vy, nibble
 func (vm *VM) handleD() {
-	//x := (vm.opcode & 0x0F00) >> 8
-	//y := (vm.opcode & 0x00F0) >> 4
-	//vm.inBounds("x", x)
-	//vm.inBounds("y", y)
-	//
-	//n := vm.opcode & 0x000F
-	//sprites := vm.memory[vm.i : vm.i+n]
-	//
-	////for i, b := range sprites {
-	////	for j := 0; j < len(vm.Screen[0]); j++ {
-	////		if x%8 != 0 { // Overlapping bytes
-	////		vm.pc += 2
-	////		}
-	////	}
-	////}
+	x := (vm.opcode & 0x0F00) >> 8
+	y := (vm.opcode & 0x00F0) >> 4
+	vm.inBounds("x", x)
+	vm.inBounds("y", y)
+
+	vx, vy := vm.v[x], vm.v[y]
+
+	vm.shouldDraw = true
+	n := vm.opcode & 0x000F
+	vm.v[0x0F] = 0
+	sprites := vm.memory[vm.i : vm.i+n]
+
+	for i, b := range sprites {
+		si := (vy + byte(i)) % 32
+		for j := 0; j < 8; j++ {
+			sj := (vx + byte(j)) % 64
+			pixel := b & (0x80 >> j)
+			if pixel == 0 {
+				continue
+			}
+
+			if vm.Screen[si][sj] == 1 {
+				vm.v[0x0F] = 1
+			}
+			vm.Screen[si][sj] ^= 1
+
+		}
+	}
+	vm.pc += 2
 }
 
 // handleE - <SKP | SKNP> Vx
@@ -340,6 +368,8 @@ func (vm *VM) handleE() {
 		} else {
 			vm.pc += 2
 		}
+	default:
+		log.Fatalf("handleE: invalid opcode %X\n", vm.opcode)
 	}
 }
 
@@ -376,18 +406,21 @@ func (vm *VM) handleF() {
 	case 0x33: // LD B, Vx
 		val := vm.v[x]
 		h := val / 100
-		t := val / 10
-		o := (val % 100) % 10
+		t := (val / 10) % 10
+		o := val % 10
+
+		vm.memory[vm.i], vm.memory[vm.i+1], vm.memory[vm.i+2] = h, t, o
 
 	case 0x55: // LD [I], Vx
-		for idx, v := range vm.v {
-			vm.memory[vm.i+uint16(idx)] = v
+		for idx := 0; idx <= int(x); idx++ {
+			vm.memory[vm.i+uint16(idx)] = vm.v[idx]
 		}
 	case 0x65: // LD Vx, [I]
-		for idx := 0; idx < len(vm.v); idx++ {
+		for idx := 0; idx <= int(x); idx++ {
 			vm.v[idx] = vm.memory[vm.i+uint16(idx)]
 		}
-
+	default:
+		log.Fatalf("handleF: invalid opcode %X\n", vm.opcode)
 	}
 	vm.pc += 2
 }
