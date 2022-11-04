@@ -1,5 +1,6 @@
 package main
 
+import "C"
 import (
 	"chip8/emulator"
 	"fmt"
@@ -9,13 +10,9 @@ import (
 	"log"
 )
 
-func game(cmd *cobra.Command, args []string) {
+func game(_ *cobra.Command, args []string) {
 	fileName := args[0]
 	file := romToBytes(fmt.Sprintf("./roms/%s", fileName))
-
-	// Chip8 Init
-	chip8 := emulator.VM{}
-	chip8.Init(file)
 
 	// SDL Init
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
@@ -23,19 +20,22 @@ func game(cmd *cobra.Command, args []string) {
 	}
 	defer sdl.Quit()
 
-	window, err := sdl.CreateWindow(fmt.Sprintf("Chip8 Emulator - %s", fileName), sdl.WINDOWPOS_UNDEFINED,
+	window, err := sdl.CreateWindow(fmt.Sprintf("Chip8 Emulator - %s", fileName[:len(fileName)-4]), sdl.WINDOWPOS_UNDEFINED,
 		sdl.WINDOWPOS_UNDEFINED, emulator.Width*emulator.Factor, emulator.Height*emulator.Factor, sdl.WINDOW_SHOWN)
 	if err != nil {
 		log.Fatalf("main: failed to create sdl window err: %s", err.Error())
 	}
 	defer window.Destroy()
 
-	surface, err := window.GetSurface()
+	canvas, err := sdl.CreateRenderer(window, -1, 0)
 	if err != nil {
-		log.Fatalf("main: failed to create surface err: %s", err.Error())
+		log.Fatalf("main: failed to create canvas err: %s", err.Error())
 	}
+	defer canvas.Destroy()
 
-	colour := 0
+	// Chip8 Init
+	chip8 := emulator.VM{}
+	chip8.Init(file)
 
 	// Main Loop
 	for chip8.Running {
@@ -44,23 +44,26 @@ func game(cmd *cobra.Command, args []string) {
 
 		// Draw only when needed
 		if chip8.Draw() {
+			canvas.SetDrawColor(0, 0, 0, 0)
+			canvas.Clear()
+
 			for i := 0; i < len(chip8.Screen); i++ {
 				for j := 0; j < len(chip8.Screen[i]); j++ {
 					if chip8.Screen[i][j] != 0 {
-						colour = 0xFFFFFF
+						canvas.SetDrawColor(255, 255, 255, 0)
 					} else {
-						colour = 0
+						canvas.SetDrawColor(0, 0, 0, 0)
 					}
 
-					surface.FillRect(&sdl.Rect{
+					canvas.FillRect(&sdl.Rect{
 						X: int32(j) * emulator.Factor,
 						Y: int32(i) * emulator.Factor,
 						W: emulator.Factor,
 						H: emulator.Factor,
-					}, uint32(colour))
+					})
 				}
 			}
-			window.UpdateSurface()
+			canvas.Present()
 		}
 
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {

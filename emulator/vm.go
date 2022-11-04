@@ -1,5 +1,6 @@
 package emulator
 
+import "C"
 import (
 	"github.com/veandco/go-sdl2/sdl"
 	"log"
@@ -70,6 +71,7 @@ func (vm *VM) Init(bytes []byte) {
 		0xE000: vm.handleE,
 		0xF000: vm.handleF,
 	}
+
 	vm.Running = true
 }
 
@@ -134,8 +136,8 @@ func (vm *VM) handle0() {
 	switch vm.opcode & 0x00FF {
 	case 0x0E0: // Clear the display
 		for i := 0; i < len(vm.Screen); i++ {
-			for j := 0; j < len(vm.Screen); j++ {
-				vm.Screen[i][j] = 0
+			for j := 0; j < len(vm.Screen[i]); j++ {
+				vm.Screen[i][j] = 0x0
 			}
 		}
 		vm.shouldDraw = true
@@ -325,15 +327,14 @@ func (vm *VM) handleD() {
 
 	vx, vy := vm.v[x], vm.v[y]
 
-	vm.shouldDraw = true
 	n := vm.opcode & 0x000F
 	vm.v[0x0F] = 0
 	sprites := vm.memory[vm.i : vm.i+n]
 
 	for i, b := range sprites {
-		si := (vy + byte(i)) % 32
+		si := (vy + byte(i)) % Height
 		for j := 0; j < 8; j++ {
-			sj := (vx + byte(j)) % 64
+			sj := (vx + byte(j)) % Width
 			pixel := b & (0x80 >> j)
 			if pixel == 0 {
 				continue
@@ -346,6 +347,7 @@ func (vm *VM) handleD() {
 
 		}
 	}
+	vm.shouldDraw = true
 	vm.pc += 2
 }
 

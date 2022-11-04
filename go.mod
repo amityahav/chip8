@@ -9,5 +9,6 @@ require (
 
 require (
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/skatiyar/go-chip8 v0.0.0-20180916154622-1a04fb2e9ed1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 )

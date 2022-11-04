@@ -1,11 +1,16 @@
 package emulator
 
+import "math"
+
 const (
 	Width              = 64
 	Height             = 32
 	Factor       int32 = 10
 	startAddress       = 0x200
 	memorySize         = 4096
+	toneHz             = 440
+	SampleHz           = 48000
+	dPhase             = 2 * math.Pi * toneHz / SampleHz
 )
 
 var fonts = [80]byte{
