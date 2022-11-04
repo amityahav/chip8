@@ -12,7 +12,7 @@ import (
 
 func game(_ *cobra.Command, args []string) {
 	fileName := args[0]
-	file := romToBytes(fmt.Sprintf("./roms/%s", fileName))
+	file := romToBytes(fmt.Sprintf("../roms/%s", fileName))
 
 	// SDL Init
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
