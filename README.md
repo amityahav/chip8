@@ -11,9 +11,9 @@ Educational project to get hands on exprience with emulation concepts.
 ### Dependencies:
 - `go get -u github.com/veandco/go-sdl2/sdl` <br />
   Note: consider installing the right sdl library for your OS system. <br />
-- `git clone` this repository <br />
 
 ## How to use:
+- `git clone` this repository <br />
 - `cd <path>/chip8/cmd` and run `go run main.go play <name of a game from roms directory>`. <br />
 - Have fun!. <br /> 
 
